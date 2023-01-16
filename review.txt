@@ -1,0 +1,203 @@
+1. Структура каталогов. Рекомендую отталкиваться от структуры, которая описана тут: https://docs.python-guide.org/writing/structure/#structure-of-the-repository
+
+2. Запуск:
+2.1 выход приводит к exception (sys.exit("До новых встречь"))
+-- Корректное завершение программы - это 0, т.е. sys.exit(0).
+2.2 Не обрабатывается 5 одинаковых кубиков (покер)
+2.3 Нет игры до 100 очков, хотя функционал заложен в функции identifying_the_winner(), но она не реализована (реализована неправильно). По сути фраза "вы победили" не выводится никогда
+2.4 Боту не даём возможность перекинуть кубики:
+    print('Ход бота')
+    print_kit_dice(bot_kit)  # Отрисовываем результат бота в консоль
+    player_score: int = scoring(base_kit)  # Подсчет очков игрока
+    bot_score: int = scoring(bot_kit)  # Подсчет очков бота
+    identifying_the_winner(player_score, bot_score)
+
+
+3. Читаемость кода:
+3.1 Нейминг:
+-- game_rule() -> print_game_rules() - Функции стоит называть глаголами.
+print_kit_dice и dice_sketch
+-- С одной стороны понятна логика, но с точки зрения нейминга, лучше именовать единообразно. Если одно называется print, то и другое называть print (Хотя в данном случае логичнее называть draw, наверное).
+Я бы назвал функции:
+dice_sketch()    == draw_dice()
+print_kit_dice() == draw_dice_kit()
+3.2 Magic values:
+Да, в данном случае выглядит "законным" использование таких магических чисел, как 5 (число кубиков), 6 (число точек на кубике), 2-4-10-20-30-40 (счёт за комбинацию), 100 - суммарный счёт.
+И тем не менее, я бы рекомендовал использовать для этих значений переменные, которые задаются конфигурацией (в данном случае можно захардкодить в переменных изначально).
+
+4. Общий анализ кода:
+4.1 if __name__ == "__main__":
+-- стандартная точка входа. Не правильно её игнорировать. Чем плохо её отсутствие? Например, если в какой-то момент придётся сделать import poker_dice, то вместо ожидаемого результата (возможность использовать функции), получим запуск программы.
+4.2 def scoring(player_kit) -> int:
+-- Нет typing'а для аргумента
+-- Логичнее назвать аргумент просто kit, т.к. скорится и бот тоже.
+-- Функции принято называть глаголами, т.е. в данном случае, логичнее было назвать:
+def score(kit: list) -> int: или def score_kit(kit: list) -> int:
+5. DRY (Don't Repeat Yourself):
+def start_new_game() -> NoReturn:
+.................................
+    if answer == 'y':
+        base_kit = change_base_dice(base_kit)
+        print('Ход бота')
+        print_kit_dice(bot_kit)  # Отрисовываем результат бота в консоль
+        player_score: int = scoring(base_kit)  # Подсчет очков игрока
+        bot_score: int = scoring(bot_kit)  # Подсчет очков бота
+        identifying_the_winner(player_score, bot_score)
+    else:
+        print('Ход бота')
+        print_kit_dice(bot_kit)
+        player_score = scoring(base_kit)
+        bot_score = scoring(bot_kit)
+        identifying_the_winner(player_score, bot_score)
+-- Вижу, что тут идёт дублирование кода и сразу хочется его переписать:
+    if answer == 'y':
+        base_kit = change_base_dice(base_kit)
+    else:
+	    pass // оставил только для того, чтобы было понятно что выносится. В целом, else не нужен.
+
+    print('Ход бота')
+    print_kit_dice(bot_kit)  # Отрисовываем результат бота в консоль
+    player_score: int = scoring(base_kit)  # Подсчет очков игрока
+    bot_score: int = scoring(bot_kit)  # Подсчет очков бота
+    identifying_the_winner(player_score, bot_score)
+-- Нарушено правило DRY - Don't Repeat Yourself
+
+
+
+6. SOLID:
+6.1 Single-object responsibility:
+-- Некоторые функции делают несколько действий. Я бы посоветовал к каждой функции написать doc-string и следить, чтобы функция делала только это и именно это.
+Я бы обратил внимание на функцию:
+def change_base_dice(base_kit: list) -> list:
+    """Изменяет значение на кубиках по запросу"""
+    print('введите 1 если меняем кубик и 0 если нет.\nОжидаемый ввод 5 чисел, по одному за раз')
+    input_number: list = [int(input()) for i in range(5)]  # Принимает заявку на переброс кубиков
+    index: int = 0  # Счетчик прохода по колоде
+    while index < len(input_number):
+        for x in input_number:
+            if x == 1:
+                base_kit[index] = randrange(6)  # Изменяем конкретный бросок через рандом
+            index += 1
+    print('Ваша измененая колода')
+    print_kit_dice(base_kit)
+    return base_kit
+
+В doc-string'е написано, что она изменяет знаяение на кубиках по запросу. В комментариях видим действия, которые она делает:
+"# Принимает заявку на переброс кубиков"
+"# Изменяем конкретный бросок через рандом"
+и то, что осталось без комментария: 
+print_kit_dice(base_kit) # """Отрисовывает кубики в терминале"""
+Видим, что функция выполняет 3 действия.
+Ещё одна "подсказка", что в этой функции не всё хорошо - это вызов функции print_kit_dice(). Все остальные вызовы этой функции находятся "на уровень выше", т.е. в функции start_new_game(), в которой находятся все остальные вызовы print_kit_dice()
+
+
+йПрименение инструментов для профилирования кода (можно настроить и использовать периодически, например, при коммитах):
+1. Pylint output:
+pylint poker_dice.py 
+************* Module poker_dice
+1. poker_dice.py:79:0: C0301: Line too long (133/100) (line-too-long)
+    -- Минорно. Не критично, но можно испавить. Тем более, что это комментарий.
+2. poker_dice.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+    -- Отсутствует описание модуля. Думаю что в данном случае не критично.
+3. poker_dice.py:3:0: W0401: Wildcard import random (wildcard-import)            --
+    -- from random import * -> from random import randrange Лучше импортировать конкретные вещи, а не всё.
+       Более того, часто лучше импортировать целый модуль, т.е. в этом случае import random и обращаться через random.randrange(). Это даёт в дальнейшем понимание, что это "внешняя" функция, а не то, что задано в этой же программе.
+4. poker_dice.py:24:10: W1309: Using an f-string that does not have any interpolated variables (f-string-without-interpolation)
+    -- print(f'Ваш стартовый набор'). Не критино, но можно было зделать без f: print('Ваш стартовый набор')
+5. poker_dice.py:67:12: C0103: Variable name "x" doesn't conform to snake_case naming style (invalid-name)
+    -- Ругается на то, что наименование переменной "x" - плохое. В целом, верно, т.к. под x обычно понимают либо координату, либо неизвестное.
+6. poker_dice.py:3:0: W0614: Unused import(s) NV_MAGICCONST, LOG4, SG_MAGICCONST, BPF, RECIP_BPF, Random, SystemRandom, seed, random, uniform, triangular, randint, choice, sample, shuffle, choices, normalvariate, lognormvariate, expovariate, vonmisesvariate, gammavariate, gauss, betavariate, paretovariate, weibullvariate, getstate, setstate, getrandbits, randbytes and TWOPI from wildcard import of random (unused-wildcard-import)
+    -- Тоже что и 3
+-----------------------------------
+Your code has been rated at 9.33/10
+
+2. PyFlakes:
+-
+
+3. pycodestyle:
+pycodestyle poker_dice.py 
+poker_dice.py:22:80: E501 line too long (90 > 79 characters)
+poker_dice.py:23:80: E501 line too long (87 > 79 characters)
+poker_dice.py:52:80: E501 line too long (90 > 79 characters)
+poker_dice.py:64:80: E501 line too long (96 > 79 characters)
+poker_dice.py:65:80: E501 line too long (97 > 79 characters)
+poker_dice.py:70:80: E501 line too long (89 > 79 characters)
+poker_dice.py:80:80: E501 line too long (133 > 79 characters)
+poker_dice.py:81:80: E501 line too long (81 > 79 characters)
+-- не критично
+poker_dice.py:82:29: E203 whitespace before ':'
+-- Стоит исправить
+poker_dice.py:116:80: E501 line too long (96 > 79 characters)
+poker_dice.py:117:80: E501 line too long (91 > 79 characters)
+-- не критично
+poker_dice.py:133:1: E305 expected 2 blank lines after class or function definition, found 1
+-- Стоит исправить
+
+4. Bandit:
+bandit poker_dice.py 
+[main]  INFO    profile include tests: None
+[main]  INFO    profile exclude tests: None
+[main]  INFO    cli include tests: None
+[main]  INFO    cli exclude tests: None
+[main]  INFO    running on Python 3.10.9
+[node_visitor]  WARNING Unable to find qualified name for module: poker_dice.py
+Run started:2023-01-13 21:17:23.878998
+
+Test results:
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   Location: poker_dice.py:22:22
+   More Info: https://bandit.readthedocs.io/en/1.7.4/blacklists/blacklist_calls.html#b311-random
+21          """Генерирует начальные колоды, дает выбор по замене кубов"""
+22          base_kit: list = [randrange(6) for x in range(5)]  # Генерация начальной колоды игрока
+23          bot_kit: list = [randrange(6) for x in range(5)]  # Генерация начальной колоды бота
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   Location: poker_dice.py:23:21
+   More Info: https://bandit.readthedocs.io/en/1.7.4/blacklists/blacklist_calls.html#b311-random
+22          base_kit: list = [randrange(6) for x in range(5)]  # Генерация начальной колоды игрока
+23          bot_kit: list = [randrange(6) for x in range(5)]  # Генерация начальной колоды бота
+24          print_kit_dice(base_kit)  # Отрисовываем результат игрока в консоль
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   Location: poker_dice.py:70:34
+   More Info: https://bandit.readthedocs.io/en/1.7.4/blacklists/blacklist_calls.html#b311-random
+69                  if x == 1:
+70                      base_kit[index] = randrange(6)  # Изменяем конкретный бросок через рандом
+71                  index += 1
+
+--------------------------------------------------
+
+Code scanned:
+        Total lines of code: 116
+        Total lines skipped (#nosec): 0
+
+Run metrics:
+        Total issues (by severity):
+                Undefined: 0
+                Low: 3
+                Medium: 0
+                High: 0
+        Total issues (by confidence):
+                Undefined: 0
+                Low: 0
+                Medium: 0
+                High: 3
+Files skipped (0):
+-- Ничего критичного
+
+5. MyPy:
+python3 -m mypy poker_dice.py 
+poker_dice.py:20: error: Implicit return in function which does not return  [misc]
+poker_dice.py:43: error: Implicit return in function which does not return  [misc]
+Found 2 errors in 1 file (checked 1 source file)
+-- Неправильное использование NoReturn. Вместо этого должно использоваться
+def start_new_game() -> None:
+NoReturn - это для функций, которые никогд не возвращают, например, бесконечный цикл либо exception.
